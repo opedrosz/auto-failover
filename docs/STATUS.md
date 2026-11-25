@@ -16,8 +16,10 @@
 | Adaptador real OpenCode | ✅ Homologado (2 modelos) | `adapters/opencode_adapter.py` |
 | CLI local | ✅ Funcional (15/15 módulos) | `cli.py doctor` |
 | Documentação técnica | ✅ 15+ documentos | raiz + `docs/` |
-| Repositório Git | ❌ Não inicializado | proposta na seção abaixo |
-| Publicação GitHub | ⏳ Aguardando aprovação | — |
+| Repositório Git | ✅ Inicializado | `.git` local, branch `main` |
+| Publicação GitHub | ✅ Publicado | `https://github.com/opedrosz/auto-failover` |
+| Commits remotos | ✅ 3 commits | `349a2e5`, `d64a07f`, `5793789` |
+| Estado local | ✅ Limpo (`main...origin/main`) | sem alterações pendentes |
 
 ## Funcionalidades Verificadas
 
@@ -43,10 +45,18 @@
 2. Homologação com `google/gemini-3.5-flash-lite` e `openrouter/*-free`
 3. Inicialização de repositório Git e publicação (aguardando aprovação explícita)
 
-## Próximo Passo Seguro
+## Publicação GitHub (CONCLUÍDA)
 
-Aguardar autorização para:
-1. `git init` no diretório da infraestrutura
-2. Revisão do `.gitignore`
-3. `git add` seletivo
-4. `git commit` (sem push sem aprovação separada)
+- **URL**: https://github.com/opedrosz/auto-failover
+- **Branch**: `main`
+- **Commits**:
+  - `349a2e5` — Auto Failover V1.0.4: infraestrutura multiagente homologada (67 arquivos)
+  - `d64a07f` — excluir scripts de publicação do versionamento
+  - `5793789` — remover scripts de verificação de credenciais do repositório
+- **Segurança**: nenhuma credencial real publicada; `.gitignore` exclui `.env`, tokens, logs, `data/`, `checkpoints/`, `backups/`, `config/`, scripts de publicação
+
+## Próximos Passos
+
+1. Revisão técnica independente (ChatGPT)
+2. Homologação multi-provedor (Gemini, OpenRouter)
+3. Integração futura aos projetos existentes (sem modificá-los)
