@@ -53,6 +53,13 @@ demo/projeto_sintetico/
 check_imports_temp.py
 verify_implementation.py
 
+# Scripts de publicacao (manipulam credenciais - nao publicar)
+create_github_repo.ps1
+git_push.ps1
+git_init_commit.ps1
+check_token.ps1
+check_cred.ps1
+
 # Sistema operacional
 Thumbs.db
 desktop.ini
