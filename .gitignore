@@ -1,0 +1,59 @@
+# ============================================================
+# AUTO FAILOVER V1.0.4 - .gitignore
+# Protecao contra publicacao de dados sensiveis
+# ============================================================
+
+# Credenciais e segredos (NUNCA publicar)
+.env
+.env.*
+*.env
+*.key
+*.pem
+*.pfx
+*.p12
+credentials*.json
+secrets*.json
+*token*.json
+*credential*.json
+
+# Chaves API em qualquer arquivo
+api_key*.txt
+apikey*.txt
+
+# Logs (podem conter dados operacionais)
+logs/
+*.log
+*.jsonl
+
+# Dados de execucao e estado (podem conter contexto)
+data/
+checkpoints/
+cache/
+locks/
+audit/
+config/
+
+# Backups (contem codigo, sem credenciais, mas nao devem ser publicados)
+backups/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Resultados de testes com dados sinteticos (evidencias locais)
+reports/*.json
+
+# Projeto sintetico gerado no demo
+demo/projeto_sintetico/
+
+# Arquivos temporarios de verificacao
+check_imports_temp.py
+verify_implementation.py
+
+# Sistema operacional
+Thumbs.db
+desktop.ini
+.DS_Store
