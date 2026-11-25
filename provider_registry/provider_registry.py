@@ -12,10 +12,42 @@ NÃO modificar, mover, excluir ou reorganizar projetos existentes.
 import json
 import os
 import logging
+import re
+import unicodedata
+from decimal import Decimal
 from pathlib import Path
 from datetime import datetime
 
 logger = logging.getLogger('AutoFailover.ProviderRegistry')
+
+def normalizar_contexto(valor, fonte=None, verificado_em=None):
+    """Normalize legacy declarations into integer tokens (K=1000, M=1000000)."""
+    if isinstance(valor, dict):
+        return {
+            **normalizar_contexto(valor.get("janela_total"), valor.get("fonte", fonte),
+                                  valor.get("verificado_em", verificado_em)),
+            "entrada": normalizar_contexto(valor.get("entrada"))["janela_total"],
+            "saida": normalizar_contexto(valor.get("saida"))["janela_total"],
+            "configuravel": valor.get("configuravel") is True,
+            "estado": "variavel" if valor.get("estado") == "variavel"
+                      else normalizar_contexto(valor.get("janela_total"))["estado"],
+        }
+    label = str(valor).strip().casefold()
+    label = unicodedata.normalize("NFKD", label).encode("ascii", "ignore").decode()
+    result = {"janela_total": None, "entrada": None, "saida": None,
+              "estado": "desconhecido", "configuravel": "configuravel" in label,
+              "fonte": fonte, "verificado_em": verificado_em}
+    if label.startswith("variavel"):
+        result["estado"] = "variavel"
+        return result
+    match = re.fullmatch(r"([0-9]{1,15}(?:\.[0-9]{1,9})?)\s*([km]?)\s*(?:tokens?)?\s*(?:\([^()]*\))?", label)
+    if match and not isinstance(valor, float):
+        amount, unit = match.groups()
+        tokens = Decimal(amount) * {"": 1, "k": 1000, "m": 1000000}[unit]
+        if tokens > 0 and tokens == int(tokens):
+            result.update(janela_total=int(tokens), estado="conhecido")
+    return result
+
 
 class ProviderRegistry:
     """Registro universal de provedores de LLM e modelos disponíveis."""
@@ -33,6 +65,7 @@ class ProviderRegistry:
         self._historico_atualizacoes = self.registry_dir / "historico_atualizacoes.jsonl"
         
         # Mapeamento interno de provedores conhecidos
+        self._aliases = {"opencode": "opencode_console", "google": "google_gemini"}
         self.provedores = {}
         self.modelos = {}
         
@@ -71,13 +104,13 @@ class ProviderRegistry:
             "tipo": "nativo",
             "descricao": "Interface e credenciais nativas do OpenCode CLI v2.3.2",
             "gratuito": True,
-            "privado": True,
+            "privado": False,
             "ferramentas_suportadas": False,
             "contexto_maximo": "variável (configurável)",
             "programacao": "forte (template engine Orion)",
             "raciocinio": "moderado",
             "visao": "nao_suportado (politica de privacidade)",
-            "politica_privacidade": "100% local - nenhum dado sai da maquina",
+            "politica_privacidade": "A privacidade depende do provedor efetivo; execucao local nao presumida",
             "fontes_verificacao": ["opencode auth list", "opencode models"],
             "data_atualizacao": datetime.utcnow().isoformat(),
             "status": "conectado",
@@ -293,6 +326,10 @@ class ProviderRegistry:
                                   f"Cuidado: nao depender de Codex nesta implementacao (V1.0.2)"
                 })
         
+        for modelo in modelos:
+            # The built-in inventory is historical; provider-wide text may name
+            # a different model, and a free label does not verify account billing.
+            modelo.update(contexto={}, disponivel=None, custo_verificado=False)
         self.modelos[alias] = modelos
         logger.debug(f"Modelos cadastrados para {alias}: {len(modelos)} modelos")
     
@@ -356,7 +393,7 @@ class ProviderRegistry:
     def obter_modelos(self, alias_provedor=None):
         """Obter modelos de um provedor ou todos."""
         if alias_provedor:
-            return self.modelos.get(alias_provedor, [])
+            return self.modelos.get(self._aliases.get(alias_provedor, alias_provedor), [])
         return self.modelos
     
     def obter_modelo_por_nome(self, nome_modelo, provedor_alias=None):
@@ -425,7 +462,7 @@ class ProviderRegistry:
         
         return resultados
     
-    def verificar_compatibilidade(self, alias_provedor, requisicoes):
+    def verificar_compatibilidade(self, alias_provedor, requisicoes, modelo=None):
         """
         Verificar se um provedor satisfaz requisicoes de uma tarefa.
         
@@ -436,55 +473,46 @@ class ProviderRegistry:
             - "contexto_maximo_minimo": int (tokens)
             - "privado": bool (True = dados nao podem sair da maquina)
         """
-        prov = self.provedores.get(alias_provedor)
+        prov = self.obter_provedor(alias_provedor)
         if not prov:
-            return {"compativel": False, "motivo": "Provedor nao cadastrado"}
-        
-        requisitos = {"compativel": True, "restricoes": []}
-        
-        # Verificar ferramentas
-        if requisicoes.get("ferramentas") and not prov.get("ferramentas_suportadas", False):
-            requisitos["compativel"] = False
-            requisitos["restricoes"].append("Ferramentas nao suportadas por este provedor")
-        
-        # Ver visão
-        if requisicoes.get("visao") and prov.get("visao", "").lower() in ["nao_suportado", "nao_info"]:
-            requisitos["compativel"] = False
-            requisitos["restricoes"].append("Visao/multimodal nao suportada")
-        
-        # Verificar privacidade
-        if requisicoes.get("privado") and not prov.get("privado", True):
-            requisitos["compativel"] = False
-            requisitos["restricoes"].append("Provedor nao e local/privado; dados seriam enviados externamente")
-        
-        # Verificar contexto
-        contexto_max = prov.get("contexto_maximo", "0")
-        if isinstance(contexto_max, str):
-            # Parse string como "128K" etc.
-            try:
-                num_max = int(contexto_max.replace('K', '').replace('k', '')) * 1000
-            except:
-                num_max = 0
-        else:
-            num_max = contexto_max
-        
-        if requisicoes.get("contexto_maximo_minimo"):
-            try:
-                min_req = int(requisicoes["contexto_maximo_minimo"])
-                # Parse do max
-                if isinstance(contexto_max, str) and 'K' in contexto_max.upper():
-                    # Ja calculado acima
-                    pass
-                if num_max < min_req:
-                    requisitos["compativel"] = False
-                    requisitos["restricoes"].append(
-                        f"Contexto maximo ({num_max} tokens) abaixo do minimo requisitado ({min_req} tokens)"
-                    )
-            except:
-                pass
-        
-        return requisitos
-    
+            return {"compativel": False, "restricoes": ["Provedor nao cadastrado"]}
+
+        capacidades = {**prov, **(modelo or {})}
+        contexto = normalizar_contexto(
+            (modelo or {}).get("contexto", (modelo or {}).get(
+                "contexto_maximo", prov.get("contexto", prov.get("contexto_maximo"))
+            )),
+            capacidades.get("fontes_verificacao"), capacidades.get("verificado_em"),
+        )
+        restricoes = []
+        for requisito, campo in (("ferramentas", "ferramentas_suportadas"),
+                                 ("privado", "privado")):
+            if requisicoes.get(requisito) and capacidades.get(campo) is not True:
+                restricoes.append(f"{requisito}: capacidade nao confirmada")
+        for campo in ("visao", "programacao", "raciocinio"):
+            valor = capacidades.get(campo)
+            conhecido = valor is True or (
+                isinstance(valor, str) and bool(valor.strip())
+                and not valor.lower().startswith(("nao", "não", "desconhecido"))
+            )
+            if requisicoes.get(campo) and not conhecido:
+                restricoes.append(f"{campo}: capacidade nao confirmada")
+
+        for campo, requisito in (("janela_total", "contexto_maximo_minimo"),
+                                 ("entrada", "tokens_entrada"), ("saida", "tokens_saida")):
+            minimo = requisicoes.get(requisito, 0)
+            if type(minimo) is not int or minimo < 0:
+                restricoes.append(f"{requisito}: requisito invalido")
+            elif minimo and (contexto[campo] is None or contexto[campo] < minimo):
+                restricoes.append(f"{requisito}: limite insuficiente ou desconhecido")
+
+        entrada, saida = (requisicoes.get(campo, 0) for campo in ("tokens_entrada", "tokens_saida"))
+        if not restricoes and (entrada or saida) and (
+            contexto["janela_total"] is None or entrada + saida > contexto["janela_total"]
+        ):
+            restricoes.append("Janela total insuficiente para entrada e saida")
+        return {"compativel": not restricoes, "restricoes": restricoes, "contexto": contexto}
+
     def registrar_uso_modelo(self, alias_provedor, modelo_identificador, task_id, 
                               custo_estimado_usd=0.0, tokens_uso=None):
         """Registrar uso de um modelo para auditoria e controle de custos."""

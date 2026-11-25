@@ -45,6 +45,7 @@ class CenariosBase(unittest.TestCase):
     """Base com utilitarios comuns."""
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
         self.base = Path(self.tmp.name)
 
 
@@ -54,7 +55,7 @@ class TestCenarios01a20(CenariosBase):
     def test_01_inicializacao_normal(self):
         from orchestrator import Orchestrator
         o = Orchestrator(str(self.base))
-        self.assertIsNotNone(o.config)
+        self.assertEqual(o.config["priority_order"][0], "opencode_console")
         registrar_resultado(1, "Inicializacao normal", "LOCAL_REAL", "APROVADO",
                             f"priority={o.config.get('priority_order')}")
 
@@ -124,7 +125,8 @@ class TestCenarios01a20(CenariosBase):
         o = Orchestrator(str(self.base))
         t = o.iniciar_tarefa("t11", "teste")
         r = o.solicitar_provedor("opencode_console")
-        self.assertIsNotNone(r)
+        self.assertFalse(r["sucesso"])
+        self.assertEqual(r["fallback_count"], o.max_fallbacks)
         registrar_resultado(11, "Alternancia entre provedores", "LOCAL_REAL", "APROVADO",
                             f"tentados={t.get('provedores_tentados')}")
 
@@ -153,7 +155,7 @@ class TestCenarios01a20(CenariosBase):
         from checkpoint_manager import CheckpointManager
         c = CheckpointManager(str(self.base))
         cp = c.salvar_checkpoint("t15", "inicio", "teste", {"dado": 1})
-        self.assertIsNotNone(cp)
+        self.assertEqual(cp["contexto_atual"], {"dado": 1})
         c2 = CheckpointManager(str(self.base))
         cp2 = c2.recuperar_checkpoint("t15")
         self.assertEqual(cp2['checksum'], cp['checksum'])
@@ -169,7 +171,7 @@ class TestCenarios01a20(CenariosBase):
         files = sorted((Path(self.base) / 'checkpoints').glob('checkpoint_t16_*'))
         files[-1].write_text("{corrompido", encoding='utf-8')
         cp = c.recuperar_checkpoint("t16")
-        self.assertIsNotNone(cp)
+        self.assertEqual(cp["contexto_atual"], {"dado": 1})
         self.assertEqual(cp['stage'], 'inicio')
         registrar_resultado(16, "Checkpoint corrompido", "LOCAL_REAL", "APROVADO", "recuperou anterior")
 
@@ -225,12 +227,16 @@ class TestCenarios21a40(CenariosBase):
         registrar_resultado(22, "Bloqueio de custos desconhecidos", "LOCAL_REAL", "APROVADO", "fail-closed")
 
     def test_23_bloqueio_precos_desatualizados(self):
-        from config_validator import ConfigValidator
-        v = ConfigValidator(str(self.base))
-        r = v.validar_todas({"provedores": {}, "prioridade": ["opencode_console"],
-                             "politica_custo": "zero_por_padrao"})
-        self.assertIsInstance(r['valido'], bool)
-        registrar_resultado(23, "Bloqueio de precos desatualizados", "LOCAL_REAL", "APROVADO", r['valido'])
+        from adapters.opencode_adapter import FinancialBlocked, OpenCodeAdapter
+        from unittest.mock import patch
+
+        a = OpenCodeAdapter(self.base)
+        with patch("adapters.opencode_adapter.subprocess.run") as executar:
+            with self.assertRaisesRegex(FinancialBlocked, "nao verificaveis"):
+                a.executar_inferencia("opencode", "opencode/hy4-flash-free", "sintetico")
+            executar.assert_not_called()
+        self.assertEqual(a.get_utilizacao()["total_chamadas"], 0)
+        registrar_resultado(23, "Bloqueio sem faturamento verificavel", "LOCAL_REAL", "APROVADO", "zero chamadas")
 
     def test_24_todos_provedores_indisponiveis(self):
         from failover_manager import FailoverManager
@@ -274,7 +280,8 @@ class TestCenarios21a40(CenariosBase):
         from task_recovery import TaskRecovery
         t = TaskRecovery(str(self.base))
         r = t._identificar_acoes_desconhecidas("t29")
-        self.assertIsInstance(r, dict)
+        self.assertFalse(r["precisa_reconciliar"])
+        self.assertEqual(r["acoes_desconhecidas"], [])
         registrar_resultado(29, "Recuperacao de acoes incertas", "LOCAL_REAL", "APROVADO", r)
 
     def test_30_fronteiras_projetos(self):
@@ -313,6 +320,7 @@ class TestCenarios21a40(CenariosBase):
         logs = a.get_estatisticas()
         sanitizado = (Path(self.base) / 'logs' / 'audit').rglob('*.jsonl')
         txt = ''.join(f.read_text(encoding='utf-8') for f in sanitizado)
+        self.assertIn('t34', txt)
         self.assertNotIn('sk-secret1234567890', txt)
         registrar_resultado(34, "Auditoria sanitizada", "LOCAL_REAL", "APROVADO", "sem segredos")
 
@@ -330,7 +338,8 @@ class TestCenarios21a40(CenariosBase):
         r = s.validar_acao({"tipo": "rede", "descricao": "curl https://externo.com"},
                            {"projeto_id": "p"})
         # comunicacao externa deve ser restrita
-        self.assertIsInstance(r['autorizada'], bool)
+        self.assertFalse(r["autorizada"])
+        self.assertIn("rede_nao_autorizada", r["restricoes"])
         registrar_resultado(36, "Bloqueio de chamadas externas nao autorizadas", "LOCAL_REAL", "APROVADO", r['autorizada'])
 
     def test_37_integridade_arquivos(self):
@@ -345,7 +354,8 @@ class TestCenarios21a40(CenariosBase):
         from skills_integration import SkillsIntegration
         s = SkillsIntegration(str(self.base))
         comp = s.listar_skills_compativeis_com('opencode_console')
-        self.assertIsInstance(comp, list)
+        for item in comp:
+            self.assertTrue(s.verificar_compatibilidade_provedor("opencode_console", item["skill"])["compativel"])
         registrar_resultado(38, "Compatibilidade com Skills", "LOCAL_REAL", "APROVADO", len(comp))
 
     def test_39_continuidade_tarefa_simulada(self):
@@ -353,9 +363,10 @@ class TestCenarios21a40(CenariosBase):
         from task_recovery import TaskRecovery
         o = Orchestrator(str(self.base))
         o.iniciar_tarefa("t39", "continuidade")
-        t = TaskRecovery(str(self.base))
+        t = TaskRecovery(str(self.base), orchestrator=o)
         r = t._registrar_tarefas_status()
-        self.assertIsInstance(r, dict)
+        self.assertEqual(r["task_id"], "t39")
+        self.assertEqual(r["descricao"], "continuidade")
         registrar_resultado(39, "Continuidade completa de tarefa simulada", "SIMULADO", "APROVADO", "tarefa registrada")
 
     def test_40_preservacao_projetos(self):
@@ -443,7 +454,7 @@ class TestCenarios41a70(CenariosBase):
     def test_51_sobrevivencia_supervisor(self):
         from supervisor import Supervisor
         s = Supervisor(str(self.base))
-        self.assertIsNotNone(s.get_estado())
+        self.assertEqual(s.get_estado(), {'processo_ativo': False, 'tarefas': [], 'total_historico': 0})
         registrar_resultado(51, "Sobrevivencia do orquestrador independente", "LOCAL_REAL", "APROVADO", "estado persistido")
 
     def test_52_reinicializacao_supervisor(self):
@@ -521,6 +532,8 @@ class TestCenarios41a70(CenariosBase):
         proc = s.iniciar_processo([sys.executable, '-c', 'print(1)'], 't61', cwd=str(self.base))
         r = s.verificar_processo('t61', timeout=20)
         self.assertEqual(r['status'], 'concluido')
+        self.assertEqual(r['returncode'], 0)
+        self.assertEqual(r['stdout'].strip(), '1')
         registrar_resultado(61, "Supervisao de processo real (Windows)", "LOCAL_REAL", "APROVADO", r['status'])
 
     def test_62_encerramento_processo_filho(self):
@@ -529,6 +542,8 @@ class TestCenarios41a70(CenariosBase):
         s.iniciar_processo([sys.executable, '-c', 'import time; time.sleep(60)'], 't62')
         r = s.encerrar_processo('t62', force=True)
         self.assertTrue(r['encerrado'])
+        self.assertIsNotNone(s.child_process.poll())
+        self.assertFalse(s.get_estado()['processo_ativo'])
         registrar_resultado(62, "Encerramento do processo filho", "LOCAL_REAL", "APROVADO", r['motivo'])
 
     def test_63_arvore_decisao_failover(self):
@@ -585,7 +600,9 @@ class TestCenarios41a70(CenariosBase):
         from audit_logger import AuditLogger
         a = AuditLogger(str(self.base))
         p = a.registrar_evento({"task_id": "t69", "evento": "teste"})
-        self.assertIsNotNone(p)
+        evento = json.loads(Path(p).read_text(encoding='utf-8').strip())
+        self.assertEqual(evento['task_id'], 't69')
+        self.assertEqual(evento['evento'], 'teste')
         registrar_resultado(69, "Audit Logger com rotacao", "LOCAL_REAL", "APROVADO", Path(p).name)
 
     def test_70_estado_final(self):

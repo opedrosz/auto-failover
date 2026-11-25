@@ -146,44 +146,12 @@ class OpenCodeAdapter:
 
     def executar_inferencia(self, provedor, modelo, mensagem, timeout=180,
                            max_output_tokens=512, dados_sinteticos=True):
-        """Executar chamada real de inferencia via interface oficial."""
-        # Protecao financeira primeiro
+        """Block external inference until the transport can enforce phase limits."""
         self.autorizar_chamada(provedor, modelo, dados_sinteticos)
-
-        # Verificar identificador real
-        id_check = self.identificar_modelo(modelo)
-        if not id_check.get('existe'):
-            return {"sucesso": False, "erro": "modelo_nao_existe",
-                    "detalhes": id_check}
-
-        cmd = [
-            'opencode', 'run',
-            '--model', modelo,
-            '--format', 'json',
-            '--auto',  # aprovar permissoes nao explicitamente negadas
-            mensagem,
-        ]
-        try:
-            r = subprocess.run(cmd, capture_output=True, text=True,
-                               timeout=timeout, cwd=str(self.base_dir))
-            registro = {
-                "timestamp": datetime.utcnow().isoformat(),
-                "provedor": provedor, "modelo": modelo,
-                "returncode": r.returncode,
-                "stdout_len": len(r.stdout), "stderr": r.stderr[-500:],
-                "sucesso": r.returncode == 0,
-                "custo_observado_usd": 0.0,
-            }
-            self.calls_realizadas.append(registro)
-            self._registrar(registro)
-            return {
-                "sucesso": r.returncode == 0,
-                "stdout": r.stdout, "stderr": r.stderr,
-                "returncode": r.returncode,
-                "registro": registro,
-            }
-        except subprocess.TimeoutExpired:
-            return {"sucesso": False, "erro": "timeout"}
+        raise FinancialBlocked(
+            "Inferencia externa pendente: limite de saida, total de chamadas internas "
+            "e faturamento da conta nao verificaveis pelo adaptador OpenCode."
+        )
 
     def _registrar(self, entry):
         try:

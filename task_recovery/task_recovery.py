@@ -32,9 +32,9 @@ class TaskRecovery:
         )
         self.checkpoint_mgr = checkpoint_mgr or self._carregar_checkpoint_mgr()
         self.orchestrator = orchestrator or self._carregar_orchestrator()
-        self.cost_controller = cost_controller or self._carregar_cost_controller()
-        self.health_monitor = health_monitor or self._carregar_health_monitor()
         self.registry = self._carregar_registro()
+        self.health_monitor = health_monitor or self._carregar_health_monitor()
+        self.cost_controller = cost_controller or self._carregar_cost_controller()
         
         # Garantir diretorios
         (self.base_dir / "checkpoints").mkdir(parents=True, exist_ok=True)

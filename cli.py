@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CLI local da infraestrutura AUTO FAILOVER V1.0.4."""
+"""CLI local da infraestrutura AUTO FAILOVER V1.0.6."""
 import json
 import os
 import sys
@@ -104,26 +104,25 @@ def cmd_history():
     print(json.dumps(m.get_estado_memoria(), ensure_ascii=False, indent=2))
 
 def cmd_test():
-    print("Executando 70 cenarios...")
     import subprocess
-    r = subprocess.run([sys.executable, str(ROOT / 'tests' / 'test_scenarios_v104.py')],
-                       capture_output=True, text=True, timeout=300)
-    for line in r.stdout.splitlines():
-        if 'RESULTADO:' in line or line.startswith('OK') or line.startswith('FAILED') or line.startswith('Ran '):
-            print(line)
+    from tempfile import TemporaryDirectory
 
-def cmd_demo():
-    print("Executando demonstracao multiagente...")
+    with TemporaryDirectory(prefix="auto-failover-tests-") as base:
+        return subprocess.run(
+            [sys.executable, "-m", "unittest", "discover", "-s", "tests"],
+            cwd=ROOT, env={**os.environ, "AUTO_FAILOVER_BASE": base},
+            timeout=300, check=False,
+        ).returncode
+
+def cmd_demo_local():
     import subprocess
-    r = subprocess.run([sys.executable, str(ROOT / 'demo' / 'demo_multiagente.py')],
-                       capture_output=True, text=True, timeout=400)
-    for line in r.stdout.splitlines():
-        if line.startswith('[') or 'RESULTADO' in line:
-            print(line)
+    return subprocess.run(
+        [sys.executable, str(ROOT / "demo" / "demo_failover_v106.py")],
+        timeout=90, check=False,
+    ).returncode
 
 def cmd_start():
-    print("Use: opencode run --model <modelo> --format json --auto <mensagem>")
-    print("Modelos gratuitos: opencode/hy4-flash-free, opencode/beam-free, etc.")
+    print("Homologacao externa pendente. Execute: python cli.py demo-local")
 
 def cmd_pause_resume_stop(args):
     from stop_controller import StopController
@@ -142,12 +141,12 @@ def cmd_pause_resume_stop(args):
 COMANDOS = {
     'doctor': cmd_doctor, 'validate': cmd_validate, 'providers': cmd_providers,
     'models': cmd_models, 'status': cmd_status, 'history': cmd_history,
-    'test': cmd_test, 'demo': cmd_demo, 'start': cmd_start,
+    'test': cmd_test, 'demo': cmd_demo_local, 'demo-local': cmd_demo_local, 'start': cmd_start,
 }
 
 def main():
     if len(sys.argv) < 2:
-        print("Comandos: doctor validate providers models status history test demo start pause resume stop recover")
+        print("Comandos: doctor validate providers models status history test demo demo-local start pause resume stop recover")
         return 1
     cmd = sys.argv[1]
     if cmd in ('pause', 'resume', 'stop', 'recover'):
@@ -157,8 +156,7 @@ def main():
         cmd_pause_resume_stop([cmd, sys.argv[2]])
         return 0
     if cmd in COMANDOS:
-        COMANDOS[cmd]()
-        return 0
+        return COMANDOS[cmd]() or 0
     print(f"Comando desconhecido: {cmd}")
     return 1
 

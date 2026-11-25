@@ -1,0 +1,11 @@
+{
+  "max_cost_usd": 0,
+  "evitar_modelos_pagos": true,
+  "requisitos_padrao": {
+    "privado": true,
+    "programacao": true,
+    "ferramentas": false,
+    "visao": false,
+    "contexto_maximo_minimo": 1024
+  }
+}
