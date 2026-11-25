@@ -1,0 +1,44 @@
+{
+  "provedores": {
+    "sintetico-a": {
+      "status": "conectado",
+      "privado": true,
+      "programacao": "forte"
+    },
+    "sintetico-b": {
+      "status": "conectado",
+      "privado": true,
+      "programacao": "forte"
+    }
+  },
+  "modelos": {
+    "sintetico-a": [
+      {
+        "nome": "sintetico-a",
+        "identificador": "sintetico-a",
+        "gratuito": true,
+        "contexto": {
+          "janela_total": 128000,
+          "entrada": null,
+          "saida": null,
+          "fonte": "fixture sintética",
+          "verificado_em": null
+        }
+      }
+    ],
+    "sintetico-b": [
+      {
+        "nome": "sintetico-b",
+        "identificador": "sintetico-b",
+        "gratuito": true,
+        "contexto": {
+          "janela_total": 128000,
+          "entrada": null,
+          "saida": null,
+          "fonte": "fixture sintética",
+          "verificado_em": null
+        }
+      }
+    ]
+  }
+}

@@ -71,3 +71,7 @@ Ver `docs/DECISIONS.md`.
 - `reports/homologacao_limitada.json` — 2 chamadas reais, custo $0
 - `reports/demo_multiagente.json` — demo concluída com sucesso
 - `reports/AUTO-FAILOVER-V1.0.4-FINAL-REPORT.md` — relatório completo (40 seções)
+
+## Continuidade V1.0.6
+
+`python cli.py test` executa as suítes. `python cli.py demo-local` cria um diretório temporário, carrega os templates e testa a continuidade da calculadora. Em uma interrupção ambígua, revise o estado do supervisor e o workspace antes de qualquer retomada.

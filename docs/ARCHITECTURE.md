@@ -11,3 +11,7 @@ sobrevivendo ao encerramento da sessao de IA.
 Adaptador real (adapters/opencode_adapter.py) usa `opencode run --model <id> --format json --auto`.
 
 Fluxo: tarefa -> checkpoint -> selecao -> inferencia -> deteccao de falha -> failover -> recuperacao.
+
+## Supervisor local V1.0.6
+
+O seletor avalia modelos concretos. O supervisor inicia um processo por vez, mantém um lock no workspace e só tenta outro provedor após uma falha declarada com código 75 e registro do checkpoint. Pode consultar um controle de interrupção antes de cada novo processo.

@@ -56,3 +56,9 @@ Registro de decisões técnicas, funcionais e de segurança tomadas nesta sessã
 ## Correções Realizadas nesta Sessão
 
 17 bugs reais corrigidos (sintaxe, imports, métodos, lógica de custo, recuperação de checkpoint, aliases). Ver `CHANGELOG.md` e o relatório final V1.0.4.
+
+## V1.0.6
+
+- K e M são unidades decimais. Uma janela desconhecida não satisfaz um mínimo positivo.
+- A demo usa subprocessos locais e mantém o progresso no workspace. O supervisor persiste metadados do checkpoint e aguarda o processo anterior antes de fazer a troca.
+- A execução externa está bloqueada até que os limites possam ser impostos e o faturamento da conta seja verificável.

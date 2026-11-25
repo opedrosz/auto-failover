@@ -1,5 +1,16 @@
 ﻿# AUTO FAILOVER V1.0.4
 
+### V1.0.6
+
+Execute `python cli.py test` e `python cli.py demo-local` no Windows com Python 3.9 ou superior. A demo usa dois provedores simulados, processos Python reais e templates públicos. Uma falha controlada dispara a troca automática. A homologação com inferência externa está pendente.
+
+Veja [Configuração](#configuração) e o [relatório V1.0.6](reports/AUTO-FAILOVER-V1.0.6-FINAL-REPORT.md).
+
+#### Configuração
+
+Use `.env.example` como referência para configurar `AUTO_FAILOVER_BASE` na sessão. A CLI não lê o arquivo automaticamente. Em uma base exclusiva, copie `examples/model_selector_config.example.json` para `config/model_selector_config.json` e `examples/provider_registry.example.json` para `data/provider_registry.json`, sempre dentro dessa base. Execute a demo para validar os dois exemplos sem escrever na instalação original.
+
+
 Infraestrutura universal de desenvolvimento multiagente com failover automatico.
 
 ## Local

@@ -60,3 +60,7 @@
 1. Revisão técnica independente (ChatGPT)
 2. Homologação multi-provedor (Gemini, OpenRouter)
 3. Integração futura aos projetos existentes (sem modificá-los)
+
+## V1.0.6
+
+Seleção e continuidade automáticas validadas com processos locais e provedores simulados. A operação externa aguarda verificação do faturamento, limite de saída e contagem de chamadas internas.

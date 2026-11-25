@@ -117,7 +117,7 @@ class SecurityController:
         """
         tipo = acao.get("tipo", "")
         descricao = acao.get("descricao", "")
-        caminho = aco.get("caminho_arquivo", "") if "caminho" in acao else ""
+        caminho = acao.get("caminho_arquivo", acao.get("caminho", ""))
         
         restricoes = []
         autorizada = True
@@ -130,6 +130,11 @@ class SecurityController:
                 restricoes.append("detetou_prompt_injection")
                 motivo = "Bloqueado: possivel injection de prompt detectada"
         
+        if tipo == "rede":
+            autorizada = False
+            restricoes.append("rede_nao_autorizada")
+            motivo = "Bloqueado: chamadas de rede exigem um adaptador autorizado"
+
         # 2. Verificar escrita fora do projeto
         if self.config.get("proibir_escrita_fora_projeto", True) and caminho:
             if caminho and self._caminho_fora_projeto(caminho, contexto):
@@ -228,26 +233,15 @@ class SecurityController:
             # Se nao conseguir determinar, ser conservador e bloquear
             return True
         
-        # Normalizar caminhos
-        caminho_norm = os.path.normpath(os.path.abspath(caminho))
-        base_norm = os.path.normpath(os.path.abspath(base_projeto))
-        
-        # Verificar se o caminho esta dentro do base do projeto
-        if caminho_norm.startswith(base_norm + os.sep) or caminho_norm == base_norm:
-            return False  # Dentro do projeto - permitido
-        
-        # Verificar links simbolicos e junctions que escapem do diretorio
         try:
-            # Resolver o caminho final (seguindo symlinks)
-            caminho_real = os.path.realpath(caminho)
-            caminho_real_norm = os.path.normpath(caminho_real)
-            if not caminho_real_norm.startswith(base_norm + os.sep) and caminho_real_norm != base_norm:
-                return True  # Link aponta para fora
-        except Exception:
-            pass
-        
-        return False  # Esta dentro (ou nao conseguimos determinar)
-    
+            base = Path(base_projeto).resolve(strict=True)
+            destino = Path(caminho)
+            if not destino.is_absolute():
+                destino = base / destino
+            return not destino.resolve().is_relative_to(base)
+        except (OSError, RuntimeError, ValueError, TypeError):
+            return True
+
     def _obter_base_projeto(self, projeto_id):
         """Obter o diretorio base de um projeto do Project Manager."""
         if self.project_manager:

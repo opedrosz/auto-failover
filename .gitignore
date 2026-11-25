@@ -6,6 +6,7 @@
 # Credenciais e segredos (NUNCA publicar)
 .env
 .env.*
+!/.env.example
 *.env
 *.key
 *.pem
@@ -30,6 +31,7 @@ data/
 checkpoints/
 cache/
 locks/
+.auto-failover.lock
 audit/
 config/
 
